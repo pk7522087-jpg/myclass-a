@@ -144,9 +144,9 @@
 </head>
 <body>
 
-    <nav class="navbar">
-        <div class="nav-logo"><i class="fa-solid fa-gamepad"></i> 9班巨星爭霸戰 (V3.0 心理學動機優化版)</div>
-        <div class="nav-tabs">
+    <nav class="navbar" id="topNavbar">
+        <div class="nav-logo"><i class="fa-solid fa-gamepad"></i> 9班巨星爭霸戰 (V3.0 安全防護版)</div>
+        <div class="nav-tabs" id="navTabsContainer">
             <button class="tab-btn active" id="nav-dashboard-btn" onclick="switchTab('dashboard')"><i class="fa-solid fa-chalkboard-user"></i> 大屏主控台</button>
             <button class="tab-btn" id="nav-tablet-btn" onclick="switchTab('tablet')"><i class="fa-solid fa-tablet-screen-button"></i> 學生載具端</button>
             <button class="tab-btn" id="nav-pokedex-btn" onclick="switchTab('pokedex'); renderPokedexGrid();"><i class="fa-solid fa-book-atlas"></i> 寶可夢大圖鑑</button>
@@ -381,8 +381,8 @@
         <div id="page-tablet" class="page-content">
             <div class="tablet-container card">
                 <div class="tablet-header">
-                    <div style="font-weight:bold; font-size:16px;">📲 學生獨立操作載具端</div>
-                    <p style="font-size:12px; margin:4px 0; opacity:0.8;">請點擊您的「座號數字」切換個人介面與遊玩扭蛋</p>
+                    <div style="font-weight:bold; font-size:16px;" id="tabletHeaderTitle">📲 學生獨立操作載具端</div>
+                    <p style="font-size:12px; margin:4px 0; opacity:0.8;" id="tabletHeaderDesc">請點擊您的「座號數字」切換個人介面與遊玩扭蛋</p>
                 </div>
 
                 <div class="seat-btn-grid" id="tabletSeatGrid"></div>
@@ -434,6 +434,7 @@
         let currentRankTab = 'level';
         let currentActiveTabletSeat = null;
         let currentPokedexFilter = '全部';
+        let isStudentMode = false; // 🌟 權限控管變數：是否為學生安全防護模式
 
         const DEFAULT_DATABASE = {
             weather: { id: 'sunny', name: '晴空萬里', icon: '☀️', effect: '今日加成：全屬性正常發揮。', attr: 'none' },
@@ -562,6 +563,10 @@
         }
 
         function switchTab(tab) {
+            // 🌟 學生安全模式下限制切換別的選單
+            if (isStudentMode && tab !== 'tablet') {
+                return;
+            }
             playSoundEffect('click');
             document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
             document.querySelectorAll('.page-content').forEach(p => p.classList.remove('active'));
@@ -813,6 +818,10 @@
         }
 
         function selectTabletSeat(id) {
+            // 🌟 學生模式下防鎖：如果已經帶了參數，就禁止點擊切換別人座號
+            if (isStudentMode && currentActiveTabletSeat !== null && currentActiveTabletSeat !== id) {
+                return;
+            }
             currentActiveTabletSeat = id;
             document.querySelectorAll('.seat-btn').forEach(b => b.classList.remove('active'));
             const targetBtn = document.getElementById(`seat-btn-${id}`);
@@ -957,7 +966,7 @@
                             <div class="action-card" onclick="studentAttackBossAction(${student.id})">
                                 <i class="fa-solid fa-burst" style="color:var(--danger)"></i>
                                 <div style="font-weight:bold; font-size:13px;">派遣上陣突擊</div>
-                                <div style="font-size:11px; color:#64748b;">${student.hasActed ? '🔴 冷卻中' : '🟢 可攻擊'}</div>
+                                <div style="font-size:11px; color:#64748b;">${student.hasActed ? '🔴 慢卻中' : '🟢 可攻擊'}</div>
                             </div>
                         </div>
                     </div>
@@ -1190,13 +1199,10 @@
             }, 100);
         }
 
-        // 🌟 已修正：將寫死的網址改為動態獲取當前 GitHub Pages 實際運行網址
         function triggerQRGeneration() {
             if (qrcodesGenerated) return;
             const printArea = document.getElementById('qrPrintArea');
             printArea.innerHTML = '';
-            
-            // 自動解析目前在 GitHub 瀏覽器上的乾淨基礎網址（去除非必要的舊問號參數）
             const currentBaseUrl = window.location.href.split('?')[0];
 
             systemDatabase.students.forEach(st => {
@@ -1211,7 +1217,6 @@
                 systemDatabase.students.forEach(st => {
                     const el = document.getElementById(`qr-hold-${st.id}`);
                     if (el) { 
-                        // 動態拼接座號參數傳遞給學生的載具
                         new QRCode(el, { text: `${currentBaseUrl}?seat=${st.id}`, width: 90, height: 90 }); 
                     }
                 });
@@ -1225,13 +1230,26 @@
             refreshAllUI();
             renderTabletSeatGrid();
 
-            // 🌟 新增心理學自動優化：自動解析網址中的座號參數 (?seat=座號)
+            // 🌟 安全防護：解析網址是否有學生座號參數
             const urlParams = new URLSearchParams(window.location.search);
             const targetSeat = urlParams.get('seat');
+            
             if (targetSeat) {
                 const seatNum = parseInt(targetSeat);
                 if (seatNum >= 1 && seatNum <= 30) {
-                    // 自動切換到學生平板分頁，並解鎖該座號
+                    isStudentMode = true; // 啟動學生模式安全鎖
+                    
+                    // 1. 隱藏上方整個 Navbar 導覽列，只保留音樂按鈕給學生
+                    document.getElementById('topNavbar').style.display = 'none';
+                    
+                    // 2. 隱藏座號選擇鈕網格，讓學生無法切換成別人的座號
+                    document.getElementById('tabletSeatGrid').style.display = 'none';
+                    
+                    // 3. 修改學生介面標題與提示，加上鎖定警示
+                    document.getElementById('tabletHeaderTitle').innerHTML = `📲 9班戰寵載具 (已鎖定 ${seatNum} 號專屬帳號)`;
+                    document.getElementById('tabletHeaderDesc').innerText = `已對應課堂機制，請專注培養您的專屬萌寵！`;
+
+                    // 4. 強制載入該座號的介面
                     switchTab('tablet');
                     selectTabletSeat(seatNum);
                 }
